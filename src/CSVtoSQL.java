@@ -1,36 +1,92 @@
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileReader;
+import java.io.*;
+import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Properties;
 
 public class CSVtoSQL {
 
     private static LinkedList<String[]> tablaDatos;
-    private static HashMap<Integer, String> magnitudes;
-    private static HashMap<Integer, String> estaciones;
+    private static LinkedList<String[]> contaminantes;
+    private static LinkedList<String[]> estaciones;
 
     private static Connection connection;
     private static Properties propiedades;
 
-    public static void insertarBBDD(LinkedList<String[]> tablaDatos) {
-        //Creación
+    public static void crearTablas() {
         // language=SQL
-        String queryCrearTablas = "CREATE TABLE contaminacion (" +
-                "MAGNITUD VARCHAR(50)," +
-                "ESTACION VARCHAR(50)," +
-                "FECHA DATE";
-        String[] primeraFila = tablaDatos.get(0);
-        for (int i = 8; i < primeraFila.length; i++) {
-            queryCrearTablas += ", " + primeraFila[i] + " VARCHAR(50)";
+        String queryCrearTablaContaminacion = "CREATE TABLE contaminacion (" +
+                "MAGNITUD INT," +
+                "ESTACION INT," +
+                "FECHA DATE," +
+                "H01 VARCHAR(50),V01 VARCHAR(50), H02 VARCHAR(50), V02 VARCHAR(50), H03 VARCHAR(50), V03 VARCHAR(50), H04 VARCHAR(50), V04 VARCHAR(50), H05 VARCHAR(50), V05 VARCHAR(50), H06 VARCHAR(50), V06 VARCHAR(50), H07 VARCHAR(50), V07 VARCHAR(50), H08 VARCHAR(50), V08 VARCHAR(50), H09 VARCHAR(50), V09 VARCHAR(50), H10 VARCHAR(50), V10 VARCHAR(50), H11 VARCHAR(50), V11 VARCHAR(50), H12 VARCHAR(50), V12 VARCHAR(50), H13 VARCHAR(50), V13 VARCHAR(50), H14 VARCHAR(50), V14 VARCHAR(50), H15 VARCHAR(50), V15 VARCHAR(50), H16 VARCHAR(50), V16 VARCHAR(50), H17 VARCHAR(50), V17 VARCHAR(50), H18 VARCHAR(50), V18 VARCHAR(50), H19 VARCHAR(50), V19 VARCHAR(50), H20 VARCHAR(50), V20 VARCHAR(50), H21 VARCHAR(50), V21 VARCHAR(50), H22 VARCHAR(50), V22 VARCHAR(50), H23 VARCHAR(50), V23 VARCHAR(50), H24 VARCHAR(50), V24 VARCHAR(50)," +
+                "FOREIGN KEY (MAGNITUD) REFERENCES contaminantes(ID)," +
+                "FOREIGN KEY (ESTACION) REFERENCES estaciones(ID));";
+        // language=SQL
+        String queryCrearTablaEstaciones = "CREATE TABLE estaciones (" +
+                "ID INT PRIMARY KEY," +
+                "NOMBRE VARCHAR(50));";
+        // language=SQL
+        String queryCrearTablaContaminantes = "CREATE TABLE contaminantes (" +
+                "ID INT PRIMARY KEY," +
+                "NOMBRE VARCHAR(50));";
+        try {
+            // language=SQL
+            connection.prepareStatement("DROP TABLE IF EXISTS contaminacion;").executeUpdate();
+            connection.prepareStatement("DROP TABLE IF EXISTS estaciones;").executeUpdate();
+            connection.prepareStatement("DROP TABLE IF EXISTS contaminantes;").executeUpdate();
+            connection.prepareStatement(queryCrearTablaEstaciones).executeUpdate();
+            connection.prepareStatement(queryCrearTablaContaminantes).executeUpdate();
+            connection.prepareStatement(queryCrearTablaContaminacion).executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        queryCrearTablas += ");";
+
+    }
+
+    public static void insertarEstaciones() {
+        // language=SQL
+        String queryInsercionEstaciones = "INSERT INTO estaciones (ID, NOMBRE) VALUES ";
+        boolean primero = true;
+        for (String[] fila : estaciones) {
+            if (!primero)
+                queryInsercionEstaciones += ", ";
+            else
+                primero = false;
+            queryInsercionEstaciones += "(" + fila[0] + ", '" + fila[1] + "')";
+        }
+        try {
+            connection.prepareStatement(queryInsercionEstaciones).executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void insertarContaminantes() {
+        // language=SQL
+        String queryInsercionContaminantes = "INSERT INTO contaminantes (ID, NOMBRE) VALUES ";
+        boolean primero = true;
+        for (String[] fila : contaminantes) {
+            if (!primero)
+                queryInsercionContaminantes += ", ";
+            else
+                primero = false;
+            queryInsercionContaminantes += "(" + fila[0] + ", '" + fila[1] + "')";
+        }
+        try {
+            connection.prepareStatement(queryInsercionContaminantes).executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public static void insertarDatos() {
+        //Creación
 
         //Inserción
         // language=SQL
@@ -45,7 +101,7 @@ public class CSVtoSQL {
                 else
                     primero = false;
                 queryInserción += "(";
-                queryInserción += "'" + magnitudes.get(Integer.parseInt(fila[3])) + "', '" + estaciones.get(Integer.parseInt(fila[4].substring(0, 8))) + "', ";
+                queryInserción += fila[3] + ", " + fila[4].substring(0, 8) + ", ";
                 queryInserción += "'" + fila[5] + "-" + fila[6] + "-" + fila[7] + "'";
                 for (int i = 8; i < fila.length; i++) {
                     queryInserción += ", '" + fila[i] + "'";
@@ -58,54 +114,51 @@ public class CSVtoSQL {
         queryInserción += ";";
         System.out.println(queryInserción);
         try {
-            // language=SQL
-            connection.prepareStatement("DROP TABLE IF EXISTS contaminacion;").executeUpdate();
-            PreparedStatement statement = connection.prepareStatement(queryCrearTablas);
-            statement.executeUpdate();
             connection.prepareStatement(queryInserción).executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public static LinkedList<String[]> leerTabla() {
-        /*try {
+    public static void leerTablas() {
+        /*
+        Intenta descargar el archivo para obtener datos en tiempo real,
+         si no se consigue se utilizará el último guardado
+         */
+        try {
             URL url = new URL("http://www.mambiente.munimadrid.es/opendata/horario.csv");
             ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
             FileOutputStream fileOutputStream = new FileOutputStream("./horario.csv");
             fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
         } catch (Exception e) {
             System.out.println("No se ha podido descargar el archivo.");
-        }*/
+        }
         BufferedReader bufferDatos = null;
-        LinkedList<String[]> tabla = new LinkedList<>();
-        magnitudes = new HashMap<>();
-        estaciones = new HashMap<>();
+        tablaDatos = new LinkedList<>();
+        contaminantes = new LinkedList<>();
+        estaciones = new LinkedList<>();
         try {
             String strLinea;
             bufferDatos = new BufferedReader(new FileReader("horario.csv"));
             BufferedReader bufferMagnitudes = new BufferedReader(new FileReader("magnitudes.csv"));
             BufferedReader bufferEstaciones = new BufferedReader(new FileReader("estaciones.csv"));
             while ((strLinea = bufferDatos.readLine()) != null) {
-                tabla.add(strLinea.split(";"));
+                tablaDatos.add(strLinea.split(";"));
             }
             while ((strLinea = bufferMagnitudes.readLine()) != null) {
-                String[] magnitud = strLinea.split(";");
-                magnitudes.put(Integer.parseInt(magnitud[0]), magnitud[1]);
+                contaminantes.add(strLinea.split(";"));
             }
             while ((strLinea = bufferEstaciones.readLine()) != null) {
-                String[] estacion = strLinea.split(";");
-                estaciones.put(Integer.parseInt(estacion[0]), estacion[1]);
+                estaciones.add(strLinea.split(";"));
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return tabla;
     }
 
     public static void main(String[] args) {
         propiedades = new Properties();
-        tablaDatos = leerTabla();
+        leerTablas();
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             propiedades.load(new FileInputStream(new File("config.ini")));
@@ -115,8 +168,10 @@ public class CSVtoSQL {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        insertarBBDD(tablaDatos);
-        new String();
+        crearTablas();
+        insertarEstaciones();
+        insertarContaminantes();
+        insertarDatos();
     }
 
 }
