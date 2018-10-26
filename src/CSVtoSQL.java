@@ -133,13 +133,12 @@ public class CSVtoSQL {
         } catch (Exception e) {
             System.out.println("No se ha podido descargar el archivo.");
         }
-        BufferedReader bufferDatos = null;
         tablaDatos = new LinkedList<>();
         contaminantes = new LinkedList<>();
         estaciones = new LinkedList<>();
         try {
             String strLinea;
-            bufferDatos = new BufferedReader(new FileReader("horario.csv"));
+            BufferedReader bufferDatos = new BufferedReader(new FileReader("horario.csv"));
             BufferedReader bufferMagnitudes = new BufferedReader(new FileReader("magnitudes.csv"));
             BufferedReader bufferEstaciones = new BufferedReader(new FileReader("estaciones.csv"));
             while ((strLinea = bufferDatos.readLine()) != null) {
